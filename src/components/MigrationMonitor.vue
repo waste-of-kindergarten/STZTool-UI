@@ -68,7 +68,7 @@
       </div>
 
       <div v-if="status === 'finished'" style="padding: 20px 0;">
-        <el-button type="primary" size="large" style="width: 250px; height: 50px; font-size: 16px;" @click="$emit('back')">完成并返回</el-button>
+        <el-button type="primary" size="large" style="width: 250px; height: 50px; font-size: 16px;" @click="handleViewReport">查看迁移样例报告</el-button>
       </div>
       <div v-else style="padding: 20px 0;">
         <el-button type="info" plain disabled size="default">正在执行后台迁移任务，请保持页面开启</el-button>
@@ -91,12 +91,16 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['back'])
+// 🔥 修改点 2: 注册新的事件 'viewReport'
+const emit = defineEmits(['back', 'viewReport'])
 
 const status = ref('idle')        
 const percentage = ref(0)
 const currentFile = ref('')
 const message = ref('Initializing...')
+// 🔥 修改点 3: 增加一个变量用来存储最终报告数据
+const finalReportData = ref(null)
+
 let timer = null 
 
 const colors = [
@@ -110,6 +114,12 @@ const statusText = computed(() => {
   if (status.value === 'error') return 'Error'
   return 'Syncing'
 })
+
+// 🔥 修改点 4: 新增点击处理函数
+const handleViewReport = () => {
+  // 将抓取到的最终数据传递给父组件
+  emit('viewReport', finalReportData.value)
+}
 
 const fetchProgress = async () => {
   try {
@@ -129,6 +139,14 @@ const fetchProgress = async () => {
       clearInterval(timer)
       if (data.status === 'finished') {
         ElMessage.success("All tasks completed!")
+        
+        // 🔥 修改点 5: 当任务完成时，保存后端传来的详细数据
+        console.log(data)
+        finalReportData.value = {
+            uploadTime: data.uploadTime || 0,        // 后端传回的秒数
+            totalSize: data.totalSize || 0, // 后端传回的字节数
+            errors: data.errors || []                // 错误列表
+        }
       }
     }
   } catch (error) {

@@ -23,6 +23,14 @@
       v-else-if="currentStep === 'monitor'" 
       :task-data="finalMapping"
       @back="goBackToWelcome"
+      @viewReport="handleViewReport"
+    />
+
+    <MigrationReport 
+      v-else-if="currentStep === 'report'"
+      :reportData="reportData"
+      @back="goBackToWelcome"
+      @close="goBackToWelcome"
     />
 
   </el-config-provider>
@@ -30,26 +38,29 @@
 
 <script setup>
 import { ref } from 'vue'
-import { ElMessage } from 'element-plus' // 记得引入这个用于提示
+import { ElMessage } from 'element-plus'
 import Welcome from './components/Welcome.vue'
 import ConnectionConfig from './components/ConnectionConfig.vue'
 import VolumeMapping from './components/VolumeMapping.vue' 
-import MigrationMonitor from './components/MigrationMonitor.vue' // [新增] 引入新组件
+import MigrationMonitor from './components/MigrationMonitor.vue'
+import MigrationReport from './components/MigrationReport.vue' // ✅ [新增] 引入报告组件
 
 // 状态管理
-// 流程：'welcome' -> 'connection' -> 'mapping' -> 'monitor'
+// 流程：'welcome' -> 'connection' -> 'mapping' -> 'monitor' -> 'report'
 const currentStep = ref('welcome')
 const storageData = ref({})  
 const finalMapping = ref({}) 
+const reportData = ref({}) // ✅ [新增] 用于存储报告数据
 
 // 切换到连接页
 const goToConnection = () => {
   currentStep.value = 'connection'
 }
 
-// 返回欢迎页
+// 返回欢迎页 (重置)
 const goBackToWelcome = () => {
   currentStep.value = 'welcome'
+  // 可选：如果希望返回首页时清空数据，可以在这里重置 reportData 或 finalMapping
 }
 
 // Step 2 -> Step 3: 接收存储数据 -> 跳转映射页
@@ -59,21 +70,15 @@ const handleStorageDataFetched = (data) => {
   console.log('已获取存储列表:', data)
 }
 
-// [修改] Step 3 -> Step 4: 向后端发送指令并跳转
+// Step 3 -> Step 4: 向后端发送指令并跳转
 const handleStartMigration = async (mappingResult) => {
-  // 1. 保存映射结果
   finalMapping.value = mappingResult
   console.log('最终映射配置:', mappingResult)
 
-  // 2. 显示 Loading 提示
-  // ❌ 错误写法 (Element Plus 没有这个方法): 
-  // const loadingMsg = ElMessage.loading({ ... })
-
-  // ✅ 正确写法: 直接调用 ElMessage，设置 duration: 0 (不自动关闭)
   const loadingMsg = ElMessage({
     message: '正在向后端下发任务...',
-    type: 'info',    // 使用 info 类型
-    duration: 0,     // 0 表示不会自动消失，直到调用 .close()
+    type: 'info',    
+    duration: 0,     
     grouping: true,
   })
 
@@ -81,7 +86,6 @@ const handleStartMigration = async (mappingResult) => {
     const currentIp = window.location.hostname
     const baseUrl = `http://${currentIp}:5175`
 
-    // 3. 发送 POST 请求给后端
     const response = await fetch(`${baseUrl}/migrate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -90,25 +94,28 @@ const handleStartMigration = async (mappingResult) => {
       })
     })
 
-    // 手动关闭 Loading 提示
     loadingMsg.close()
 
     if (response.ok) {
-      // 4. 成功！跳转到监控页
       ElMessage.success('任务启动成功！')
       currentStep.value = 'monitor'
     } else {
-      // 失败：读取错误信息
       const errText = await response.text()
       ElMessage.error(`启动失败: ${errText}`)
     }
 
   } catch (error) {
-    // 发生异常也要关闭 Loading
     loadingMsg.close()
     console.error(error)
     ElMessage.error('无法连接后端服务，请检查网络')
   }
+}
+
+// ✅ [新增] Step 4 -> Step 5: 接收监控页传来的报告数据并跳转
+const handleViewReport = (data) => {
+  console.log("收到报告数据:", data)
+  reportData.value = data // 保存数据传递给 MigrationReport 组件
+  currentStep.value = 'report' // 切换视图
 }
 </script>
 
